@@ -665,6 +665,9 @@ struct ufs_dev_info {
 
 	bool keep_vcc_on;
 	bool wb_config_lun;
+	unsigned int pre_eol_info;
+	unsigned int lifetime_a;
+	unsigned int lifetime_b;
 };
 
 #define MAX_MODEL_LEN 16

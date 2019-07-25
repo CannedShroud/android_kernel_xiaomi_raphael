@@ -2658,6 +2658,21 @@ static u32 ufs_qcom_get_user_cap_mode(struct ufs_hba *hba)
 {
 	return UFS_WB_BUFF_PRESERVE_USER_SPACE;
 }
+void ufs_qcom_print_phy_state(struct ufs_hba *hba)
+{
+	struct ufs_qcom_host *host = ufshcd_get_variant(hba);
+	struct phy *phy = host->generic_phy;
+
+	ufs_qcom_phy_print_phy_state(phy);
+}
+
+bool ufs_qcom_check_phy_state(struct ufs_hba *hba)
+{
+	struct ufs_qcom_host *host = ufshcd_get_variant(hba);
+	struct phy *phy = host->generic_phy;
+
+	return host->is_phy_pwr_on && !ufs_qcom_phy_ref_clk_enabled(phy);
+}
 
 /**
  * struct ufs_hba_qcom_vops - UFS QCOM specific variant operations

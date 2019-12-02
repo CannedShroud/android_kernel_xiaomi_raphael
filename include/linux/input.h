@@ -43,6 +43,12 @@ enum input_clock_type {
 	INPUT_CLK_MAX
 };
 
+/**
+ * struct input_dev - represents an input device
+ * @name: name of the device
+ * @phys: physical path to the device in the system hierarchy
+ * @uniq: unique identification code for the device (if device has it)
+
  * @id: id of the device (struct input_id)
  * @propbit: bitmap of device properties and quirks
  * @evbit: bitmap of types of events supported by the device (EV_KEY,
@@ -191,14 +197,8 @@ struct input_dev {
 	struct input_value *vals;
 
 	bool devres_managed;
-<<<<<<< HEAD
-=======
-#ifdef CONFIG_LAST_TOUCH_EVENTS
-	struct touch_event_info *touch_events;
-#endif
 
 	ktime_t timestamp[INPUT_CLK_MAX];
->>>>>>> 2b3cecd1ce65 (UPSTREAM: input: allow drivers specify timestamp for input events)
 };
 #define to_input_dev(d) container_of(d, struct input_dev, dev)
 

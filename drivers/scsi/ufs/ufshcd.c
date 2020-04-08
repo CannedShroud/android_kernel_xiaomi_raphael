@@ -4881,6 +4881,9 @@ int ufshcd_read_desc_param(struct ufs_hba *hba,
 	}
 
 	/* Check whether we need temp memory */
+	if (param_offset + param_size > buff_len)
+		return -EINVAL;
+
 	if (param_offset != 0 || param_size < buff_len) {
 		desc_buf = kzalloc(buff_len, GFP_KERNEL);
 		if (!desc_buf)

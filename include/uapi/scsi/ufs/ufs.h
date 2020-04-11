@@ -1,7 +1,7 @@
 #ifndef UAPI_UFS_H_
 #define UAPI_UFS_H_
 
-#define MAX_QUERY_IDN	0x18
+#define MAX_QUERY_IDN	0x20
 
 /* Flag idn for Query Requests*/
 enum flag_idn {
@@ -59,6 +59,8 @@ enum attr_idn {
 	QUERY_ATTR_IDN_AVAIL_WB_BUFF_SIZE       = 0x1D,
 	QUERY_ATTR_IDN_WB_BUFF_LIFE_TIME_EST    = 0x1E,
 	QUERY_ATTR_IDN_CURR_WB_BUFF_SIZE        = 0x1F,
+	QUERY_ATTR_IDN_MANUAL_GC_CONT		= 0x12,
+	QUERY_ATTR_IDN_MANUAL_GC_STATUS_1	= 0x13,
 #if defined(CONFIG_UFSTW)
 	QUERY_ATTR_IDN_TW_FLUSH_STATUS		= 0x1C,
 	QUERY_ATTR_IDN_TW_BUF_SIZE		= 0x1D,
@@ -67,8 +69,6 @@ enum attr_idn {
 #if defined(CONFIG_UFSFEATURE)
 	QUERY_ATTR_IDN_SUP_VENDOR_OPTIONS	= 0xFF,
 #endif
-	/* use one reserved bit */
-	QUERY_ATTR_IDN_MANUAL_GC_STATUS		= 0x18,
 };
 
 #define QUERY_ATTR_IDN_REF_CLK_GATING_WAIT_TIME \

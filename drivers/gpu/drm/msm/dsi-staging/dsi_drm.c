@@ -18,6 +18,8 @@
 
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_atomic.h>
+#include <drm/drm_bridge.h>
+#include <linux/pm_wakeup.h>
 
 #include "msm_kms.h"
 #include "sde_connector.h"
@@ -40,6 +42,12 @@ static struct dsi_display_mode_priv_info default_priv_info = {
 	.dsc_enabled = false,
 };
 
+#define WAIT_RESUME_TIMEOUT 200
+
+struct dsi_bridge *gbridge;
+static struct delayed_work prim_panel_work;
+static atomic_t prim_panel_is_on;
+static struct wakeup_source prim_panel_wakelock;
 static void convert_to_dsi_mode(const struct drm_display_mode *drm_mode,
 				struct dsi_display_mode *dsi_mode)
 {
@@ -174,8 +182,6 @@ static void dsi_bridge_pre_enable(struct drm_bridge *bridge)
 {
 	int rc = 0;
 	struct dsi_bridge *c_bridge = to_dsi_bridge(bridge);
-	struct msm_drm_notifier notify_data;
-	int power_mode;
 
 	if (!bridge) {
 		pr_err("Invalid params\n");
@@ -228,8 +234,6 @@ static void dsi_bridge_pre_enable(struct drm_bridge *bridge)
 		(void)dsi_display_unprepare(c_bridge->display);
 	}
 	SDE_ATRACE_END("dsi_display_enable");
-
-	msm_drm_notifier_call_chain(MSM_DRM_EVENT_BLANK, &notify_data);
 
 	rc = dsi_display_splash_res_cleanup(c_bridge->display);
 	if (rc)
@@ -302,18 +306,11 @@ static void dsi_bridge_post_disable(struct drm_bridge *bridge)
 {
 	int rc = 0;
 	struct dsi_bridge *c_bridge = to_dsi_bridge(bridge);
-	struct msm_drm_notifier notify_data;
-	int power_mode;
 
 	if (!bridge) {
 		pr_err("Invalid params\n");
 		return;
 	}
-
-	power_mode = sde_connector_get_lp(c_bridge->display->drm_conn);
-	notify_data.data = &power_mode;
-	notify_data.id = MSM_DRM_PRIMARY_DISPLAY;
-	msm_drm_notifier_call_chain(MSM_DRM_EARLY_EVENT_BLANK, &notify_data);
 
 	SDE_ATRACE_BEGIN("dsi_bridge_post_disable");
 	SDE_ATRACE_BEGIN("dsi_display_disable");
@@ -335,7 +332,20 @@ static void dsi_bridge_post_disable(struct drm_bridge *bridge)
 	}
 	SDE_ATRACE_END("dsi_bridge_post_disable");
 
-	msm_drm_notifier_call_chain(MSM_DRM_EVENT_BLANK, &notify_data);
+	if (c_bridge->display->is_prim_display)
+		atomic_set(&prim_panel_is_on, false);
+}
+
+static void prim_panel_off_delayed_work(struct work_struct *work)
+{
+	mutex_lock(&gbridge->base.lock);
+	if (atomic_read(&prim_panel_is_on)) {
+		dsi_bridge_post_disable(&gbridge->base);
+		__pm_relax(&prim_panel_wakelock);
+		mutex_unlock(&gbridge->base.lock);
+		return;
+	}
+	mutex_unlock(&gbridge->base.lock);
 }
 
 static void dsi_bridge_mode_set(struct drm_bridge *bridge,

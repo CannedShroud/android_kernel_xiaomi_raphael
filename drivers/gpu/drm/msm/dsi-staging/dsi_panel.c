@@ -685,12 +685,11 @@ static u32 dsi_panel_get_backlight(struct dsi_panel *panel)
 {
 	u32 bl_level;
 
-	if (panel->doze_enabled && panel->doze_mode == DSI_DOZE_HBM)
-		bl_level = panel->bl_config.bl_doze_hbm;
-	else if (panel->doze_enabled && panel->doze_mode == DSI_DOZE_LPM)
-		bl_level = panel->bl_config.bl_doze_lpm;
-	else if (!panel->doze_enabled)
+	if (panel->doze_enabled) {
+		bl_level = panel->doze_mode ? panel->bl_config.bl_doze_hbm : panel->bl_config.bl_doze_lpm;
+	} else {
 		bl_level = panel->bl_config.bl_level;
+	}
 
 	return bl_level;
 }
@@ -723,31 +722,19 @@ u32 dsi_panel_get_fod_dim_alpha(struct dsi_panel *panel)
 			panel->fod_dim_lut[i - 1].alpha, panel->fod_dim_lut[i].alpha);
 }
 
-extern bool fod_dimlayer_hbm_enabled;
-extern bool fod_hbm_enabled;
+extern bool is_dimlayer_hbm_enabled;
 int dsi_panel_update_doze(struct dsi_panel *panel) {
 	int rc = 0;
 
-	if (panel->doze_enabled && panel->doze_mode == DSI_DOZE_HBM) {
-		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DOZE_HBM);
-		if (rc)
-			pr_err("[%s] failed to send DSI_CMD_SET_DOZE_HBM cmd, rc=%d\n",
-					panel->name, rc);
-	} else if (panel->doze_enabled && panel->doze_mode == DSI_DOZE_LPM) {
-		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DOZE_LBM);
-		if (rc)
-			pr_err("[%s] failed to send DSI_CMD_SET_DOZE_LBM cmd, rc=%d\n",
-					panel->name, rc);
-	} else if (!panel->doze_enabled) {
+	if (panel->doze_enabled) {
+		rc = dsi_panel_tx_cmd_set(panel, panel->doze_mode ? DSI_CMD_SET_DOZE_HBM : DSI_CMD_SET_DOZE_LBM);
+	} else {
 		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_NOLP);
-		if (rc)
-			pr_err("[%s] failed to send DSI_CMD_SET_NOLP cmd, rc=%d\n",
-					panel->name, rc);
-
-		dsi_panel_set_fod_hbm(panel, (fod_dimlayer_hbm_enabled || fod_hbm_enabled));
-
+		dsi_panel_set_fod_hbm(panel, is_dimlayer_hbm_enabled);
 	}
 
+	if (rc)
+		pr_err("[%s] failed to send DOZE, rc=%d\n", panel->name, rc);
 	return rc;
 }
 
@@ -772,25 +759,18 @@ int dsi_panel_set_doze_mode(struct dsi_panel *panel, enum dsi_doze_mode_type mod
 	return dsi_panel_update_doze(panel);
 }
 
-extern bool fod_hbm_enabled;
 int dsi_panel_set_fod_hbm(struct dsi_panel *panel, bool status)
 {
 	int rc = 0;
 
-	if (status) {
-		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DISP_HBM_FOD_ON);
-		if (rc)
-			pr_err("[%s] failed to send DSI_CMD_SET_DISP_HBM_FOD_ON cmd, rc=%d\n",
-					panel->name, rc);
-	} else if (panel->doze_enabled) {
-		dsi_panel_update_doze(panel);
-	} else {
-		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DISP_HBM_FOD_OFF);
-		if (rc)
-			pr_err("[%s] failed to send DSI_CMD_SET_DISP_HBM_FOD_OFF cmd, rc=%d\n",
-					panel->name, rc);
-	}
+	if (panel->doze_enabled)
+		rc = dsi_panel_update_doze(panel);
 
+	rc = dsi_panel_tx_cmd_set(panel, status ? DSI_CMD_SET_DISP_HBM_FOD_ON : DSI_CMD_SET_DISP_HBM_FOD_OFF);
+
+	if (rc)
+		pr_err("[%s] failed to send FOD HBM cmd, rc=%d\n",
+				panel->name, rc);
 	return rc;
 }
 
@@ -2363,6 +2343,9 @@ static int dsi_panel_parse_fod_dim_lut(struct dsi_panel *panel,
 	int len;
 	int rc;
 	int i;
+
+	if (!panel->bl_config.dcs_type_ss)
+		return 0;
 
 	len = utils->count_u32_elems(utils->data, "qcom,disp-fod-dim-lut");
 	if (len <= 0 || len % BRIGHTNESS_ALPHA_PAIR_LEN) {
@@ -4438,11 +4421,13 @@ int dsi_panel_enable(struct dsi_panel *panel)
 		       panel->name, rc);
 	else
 		panel->panel_initialized = true;
-
-	if (fod_dimlayer_hbm_enabled)
-	    	dsi_panel_set_fod_hbm(panel, true);
-
 	mutex_unlock(&panel->panel_lock);
+
+	dsi_panel_set_fod_hbm(panel, is_dimlayer_hbm_enabled);
+
+	if (panel->hbm_mode)
+		dsi_panel_apply_hbm_mode(panel);
+
 	return rc;
 }
 
@@ -4500,7 +4485,6 @@ int dsi_panel_disable(struct dsi_panel *panel)
 		return -EINVAL;
 	}
 
-	pr_err("%s\n", __func__);
 	mutex_lock(&panel->panel_lock);
 
 	/* Avoid sending panel off commands when ESD recovery is underway */
@@ -4577,5 +4561,28 @@ int dsi_panel_post_unprepare(struct dsi_panel *panel)
 	}
 error:
 	mutex_unlock(&panel->panel_lock);
+	return rc;
+}
+
+int dsi_panel_apply_hbm_mode(struct dsi_panel *panel)
+{
+	static const enum dsi_cmd_set_type type_map[] = {
+		DSI_CMD_SET_DISP_HBM_FOD_OFF,
+		DSI_CMD_SET_DISP_HBM_FOD_ON
+	};
+
+	enum dsi_cmd_set_type type;
+	int rc;
+
+	if (panel->hbm_mode >= 0 &&
+		panel->hbm_mode < ARRAY_SIZE(type_map))
+		type = type_map[panel->hbm_mode];
+	else
+		type = DSI_CMD_SET_DISP_HBM_FOD_OFF;
+
+	mutex_lock(&panel->panel_lock);
+	rc = dsi_panel_tx_cmd_set(panel, type);
+	mutex_unlock(&panel->panel_lock);
+
 	return rc;
 }

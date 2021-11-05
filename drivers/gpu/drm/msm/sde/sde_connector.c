@@ -583,10 +583,10 @@ static int _sde_connector_update_dirty_properties(
 	return 0;
 }
 
-extern bool fod_dimlayer_hbm_enabled;
-bool last_fod_dimlayer_hbm_enabled;
+extern bool is_dimlayer_hbm_enabled;
+bool last_dimlayer_hbm_enabled;
 bool last_dimlayer_status;
-void sde_connector_update_fod_hbm(struct drm_connector *connector)
+void sde_connector_update_hbm(struct drm_connector *connector)
 {
 	struct sde_crtc_state *cstate;
 	struct sde_connector *c_conn;
@@ -607,33 +607,23 @@ void sde_connector_update_fod_hbm(struct drm_connector *connector)
 	if (!c_conn->encoder || !c_conn->encoder->crtc ||
 			!c_conn->encoder->crtc->state)
 		return;
+
 	cstate = to_sde_crtc_state(c_conn->encoder->crtc->state);
 	status = cstate->fod_dim_layer != NULL;
 
-	if (last_fod_dimlayer_hbm_enabled == fod_dimlayer_hbm_enabled &&
-		status == last_dimlayer_status)
+	if (last_dimlayer_hbm_enabled == is_dimlayer_hbm_enabled &&
+			status == last_dimlayer_status)
 		return;
 
-	if (status) {
-		mutex_lock(&display->panel->panel_lock);
-		if (fod_dimlayer_hbm_enabled) {
-			dsi_panel_set_fod_hbm(display->panel, fod_dimlayer_hbm_enabled);
-			dsi_display_set_fod_ui(display, fod_dimlayer_hbm_enabled);
-			last_fod_dimlayer_hbm_enabled = fod_dimlayer_hbm_enabled;
-
-		}
-		mutex_unlock(&display->panel->panel_lock);
-	} else {
-		mutex_lock(&display->panel->panel_lock);
-		dsi_panel_set_fod_hbm(display->panel, false);
-		dsi_display_set_fod_ui(display, false);
-		mutex_unlock(&display->panel->panel_lock);
-		last_fod_dimlayer_hbm_enabled = fod_dimlayer_hbm_enabled;
-
-	}
+	mutex_lock(&display->panel->panel_lock);
+	dsi_panel_set_fod_hbm(display->panel,
+			status ? is_dimlayer_hbm_enabled : false);
+	last_dimlayer_hbm_enabled = is_dimlayer_hbm_enabled;
 	last_dimlayer_status = status;
-	pr_debug("debug: update dimlayer hbm: fod_dimlayer_hbm_enabled %d, last_dimlayer_status %d",
-		fod_dimlayer_hbm_enabled, last_dimlayer_status);
+	mutex_unlock(&display->panel->panel_lock);
+
+	dsi_display_set_fod_ui(display,
+			status ? is_dimlayer_hbm_enabled : false);
 }
 
 int sde_connector_pre_kickoff(struct drm_connector *connector)
@@ -669,7 +659,7 @@ int sde_connector_pre_kickoff(struct drm_connector *connector)
 
 	SDE_EVT32_VERBOSE(connector->base.id);
 
-	sde_connector_update_fod_hbm(connector);
+	sde_connector_update_hbm(connector);
 
 	rc = c_conn->ops.pre_kickoff(connector, c_conn->display, &params);
 

@@ -37,7 +37,6 @@
 #define _UFS_H
 
 #include <linux/mutex.h>
-#include <linux/ktime.h>
 #include <linux/types.h>
 #include <scsi/ufs/ufs.h>
 
@@ -142,8 +141,6 @@ enum {
 	UPIU_QUERY_FUNC_STANDARD_WRITE_REQUEST          = 0x81,
 };
 
-#define UFSHCD_DEFAULT_PE_CYCLE		3000
-
 enum desc_header_offset {
 	QUERY_DESC_LENGTH_OFFSET	= 0x00,
 	QUERY_DESC_DESC_TYPE_OFFSET	= 0x01,
@@ -154,20 +151,9 @@ enum ufs_desc_def_size {
 	QUERY_DESC_CONFIGURATION_DEF_SIZE	= 0x90,
 	QUERY_DESC_UNIT_DEF_SIZE		= 0x23,
 	QUERY_DESC_INTERCONNECT_DEF_SIZE	= 0x06,
-	QUERY_DESC_GEOMETRY_DEF_SIZE		= 0x44,
+	QUERY_DESC_GEOMETRY_DEF_SIZE		= 0x48,
 	QUERY_DESC_POWER_DEF_SIZE		= 0x62,
 	QUERY_DESC_HEALTH_DEF_SIZE		= 0x25,
-};
-
-enum ufs_health_offset {
-	UFSHCD_HEALTH_LEN_OFFSET	= 0x0,
-	UFSHCD_HEALTH_TYPE_OFFSET	= 0x1,
-	UFSHCD_HEALTH_EOL_OFFSET	= 0x2,
-	UFSHCD_HEALTH_LIFEA_OFFSET	= 0x3,
-	UFSHCD_HEALTH_LIFEB_OFFSET	= 0x4,
-	UFSHCD_HEALTH_ERASE_OFFSET	= 0x0D,
-	UFSHCD_HEALTH_WRITE_OFFSET	= 0x15,
-	UFSHCD_HEALTH_LIFEC_OFFSET	= 0x24,
 };
 
 /* Unit descriptor parameters offsets in bytes*/
@@ -190,15 +176,6 @@ enum unit_desc_param {
 	UNIT_DESC_PARAM_CTX_CAPABILITIES	= 0x20,
 	UNIT_DESC_PARAM_LARGE_UNIT_SIZE_M1	= 0x22,
 	UNIT_DESC_PARAM_WB_BUF_ALLOC_UNITS	= 0x29,
-#if defined(CONFIG_UFSHPB)
-	UNIT_DESC_HPB_LU_MAX_ACTIVE_REGIONS		= 0x23,
-	UNIT_DESC_HPB_LU_PIN_REGION_START_OFFSET	= 0x25,
-	UNIT_DESC_HPB_LU_NUM_PIN_REGIONS		= 0x27,
-#endif
-#if defined(CONFIG_UFSTW)
-	UNIT_DESC_TW_LU_MAX_BUF_SIZE			= 0x29,
-#endif
-
 };
 
 /* Device descriptor parameters offsets in bytes*/
@@ -230,11 +207,10 @@ enum device_desc_param {
 	DEVICE_DESC_PARAM_UD_LEN		= 0x1B,
 	DEVICE_DESC_PARAM_RTT_CAP		= 0x1C,
 	DEVICE_DESC_PARAM_FRQ_RTC		= 0x1D,
-	DEVICE_DESC_PARAM_FEAT_SUP		= 0x1F,
-	DEVICE_DESC_PARAM_UFS_FEAT		= 0x20,
-	DEVICE_DESC_PARAM_FFU_TMT		= 0x21,
-	DEVICE_DESC_PARAM_Q_DPTH		= 0x22,
-	DEVICE_DESC_PARAM_DEV_VER		= 0x23,
+	DEVICE_DESC_PARAM_UFS_FEAT		= 0x1F,
+	DEVICE_DESC_PARAM_FFU_TMT		= 0x20,
+	DEVICE_DESC_PARAM_Q_DPTH		= 0x21,
+	DEVICE_DESC_PARAM_DEV_VER		= 0x22,
 	DEVICE_DESC_PARAM_NUM_SEC_WPA		= 0x24,
 	DEVICE_DESC_PARAM_PSA_MAX_DATA		= 0x25,
 	DEVICE_DESC_PARAM_PSA_TMT		= 0x29,
@@ -243,17 +219,6 @@ enum device_desc_param {
 	DEVICE_DESC_PARAM_WB_US_RED_EN		= 0x53,
 	DEVICE_DESC_PARAM_WB_TYPE		= 0x54,
 	DEVICE_DESC_PARAM_WB_SHARED_ALLOC_UNITS = 0x55,
-#if defined(CONFIG_UFSHPB)
-	DEVICE_DESC_PARAM_HPB_VER		= 0x40,
-#endif
-#if defined(CONFIG_UFSFEATURE)
-	DEVICE_DESC_PARAM_EX_FEAT_SUP		= 0x4F,
-#endif
-#if defined(CONFIG_UFSTW)
-	DEVICE_DESC_PARAM_TW_RETURN_TO_USER	= 0x53,
-	DEVICE_DESC_PARAM_TW_BUF_TYPE		= 0x54,
-	DEVICE_DESC_PARAM_TW_VER		= 0x55,
-#endif
 };
 
 /* Geometry descriptor parameters offsets in bytes*/
@@ -295,23 +260,16 @@ enum geometry_desc_param {
 	GEOMETRY_DESC_PARAM_WB_BUFF_CAP_ADJ	= 0x54,
 	GEOMETRY_DESC_PARAM_WB_SUP_RED_TYPE	= 0x55,
 	GEOMETRY_DESC_PARAM_WB_SUP_WB_TYPE	= 0x56,
-	GEOMETRY_DESC_SEGMENT_SIZE = 0x0D,
-#if defined(CONFIG_UFSHPB)
-	GEOMETRY_DESC_HPB_REGION_SIZE			= 0x48,
-	GEOMETRY_DESC_HPB_NUMBER_LU				= 0x49,
-	GEOMETRY_DESC_HPB_SUBREGION_SIZE		= 0x4A,
-	GEOMETRY_DESC_HPB_DEVICE_MAX_ACTIVE_REGIONS	= 0x4B,
-#endif
-#if defined(CONFIG_UFSTW)
-	GEOMETRY_DESC_TW_MAX_SIZE			= 0x4F,
-	GEOMETRY_DESC_TW_NUMBER_LU			= 0x53,
-	GEOMETRY_DESC_TW_CAP_ADJ_FAC			= 0x54,
-	GEOMETRY_DESC_TW_SUPPORT_USER_REDUCTION_TYPES	= 0x55,
-	GEOMETRY_DESC_TW_SUPPORT_BUF_TYPE		= 0x56,
-	GEOMETRY_DESC_TW_GROUP_NUM_CAP			= 0x57,
-#endif
 };
 
+/* Health descriptor parameters offsets in bytes*/
+enum health_desc_param {
+	HEALTH_DESC_PARAM_LEN			= 0x0,
+	HEALTH_DESC_PARAM_TYPE			= 0x1,
+	HEALTH_DESC_PARAM_EOL_INFO		= 0x2,
+	HEALTH_DESC_PARAM_LIFE_TIME_EST_A	= 0x3,
+	HEALTH_DESC_PARAM_LIFE_TIME_EST_B	= 0x4,
+};
 
 /* Interconnect descriptor parameters offsets in bytes*/
 enum interconnect_desc_param {
@@ -362,9 +320,6 @@ enum power_desc_param_offset {
 enum {
 	MASK_EE_STATUS		= 0xFFFF,
 	MASK_EE_URGENT_BKOPS	= (1 << 2),
-#if defined(CONFIG_UFSTW)
-	MASK_EE_TW		= (1 << 5),
-#endif
 };
 
 /* Background operation status */
@@ -613,9 +568,9 @@ struct ufs_query_res {
 #define UFS_VREG_VCC_MAX_UV	   3600000 /* uV */
 #define UFS_VREG_VCC_1P8_MIN_UV    1700000 /* uV */
 #define UFS_VREG_VCC_1P8_MAX_UV    1950000 /* uV */
-#define UFS_VREG_VCCQ_MIN_UV	   1100000 /* uV */
+#define UFS_VREG_VCCQ_MIN_UV	   1140000 /* uV */
 #define UFS_VREG_VCCQ_MAX_UV	   1300000 /* uV */
-#define UFS_VREG_VCCQ2_MIN_UV	   1650000 /* uV */
+#define UFS_VREG_VCCQ2_MIN_UV	   1700000 /* uV */
 #define UFS_VREG_VCCQ2_MAX_UV	   1950000 /* uV */
 
 /*
@@ -679,11 +634,6 @@ struct ufs_dev_info {
 
 	bool keep_vcc_on;
 	bool wb_config_lun;
-	unsigned int pre_eol_info;
-	unsigned int lifetime_a;
-	unsigned int lifetime_b;
-	unsigned int lifetime_c;
-	ktime_t health_cached_time;
 };
 
 #define MAX_MODEL_LEN 16

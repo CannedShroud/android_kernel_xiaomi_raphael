@@ -14,8 +14,6 @@
 
 
 #define pr_fmt(fmt)	"dsi-drm:[%s] " fmt, __func__
-#include <linux/msm_drm_notify.h>
-
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_atomic.h>
 #include <drm/drm_bridge.h>
@@ -195,11 +193,6 @@ static void dsi_bridge_pre_enable(struct drm_bridge *bridge)
 
 	atomic_set(&c_bridge->display->panel->esd_recovery_pending, 0);
 
-	power_mode = sde_connector_get_lp(c_bridge->display->drm_conn);
-	notify_data.data = &power_mode;
-	notify_data.id = MSM_DRM_PRIMARY_DISPLAY;
-	msm_drm_notifier_call_chain(MSM_DRM_EARLY_EVENT_BLANK, &notify_data);
-
 	/* By this point mode should have been validated through mode_fixup */
 	rc = dsi_display_set_mode(c_bridge->display,
 			&(c_bridge->dsi_mode), 0x0);
@@ -331,21 +324,6 @@ static void dsi_bridge_post_disable(struct drm_bridge *bridge)
 		return;
 	}
 	SDE_ATRACE_END("dsi_bridge_post_disable");
-
-	if (c_bridge->display->is_prim_display)
-		atomic_set(&prim_panel_is_on, false);
-}
-
-static void prim_panel_off_delayed_work(struct work_struct *work)
-{
-	mutex_lock(&gbridge->base.lock);
-	if (atomic_read(&prim_panel_is_on)) {
-		dsi_bridge_post_disable(&gbridge->base);
-		__pm_relax(&prim_panel_wakelock);
-		mutex_unlock(&gbridge->base.lock);
-		return;
-	}
-	mutex_unlock(&gbridge->base.lock);
 }
 
 static void dsi_bridge_mode_set(struct drm_bridge *bridge,

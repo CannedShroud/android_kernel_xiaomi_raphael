@@ -1721,22 +1721,6 @@ static struct notifier_block thermal_pm_nb = {
 	.notifier_call = thermal_pm_notify,
 };
 
-static int of_parse_thermal_message(void)
-{
-	struct device_node *np;
-
-	np = of_find_node_by_name(NULL, "thermal-message");
-	if (!np)
-		return -EINVAL;
-
-	if (of_property_read_string(np, "board-sensor", &board_sensor))
-		return -EINVAL;
-
-	pr_info("%s board sensor: %s\n", board_sensor);
-
-	return 0;
-}
-
 static int __init thermal_init(void)
 {
 	int result;
@@ -1767,7 +1751,6 @@ static int __init thermal_init(void)
 	if (result)
 		pr_warn("Thermal: Can not register suspend notifier, return %d\n",
 			result);
-
 	return 0;
 
 exit_zone_parse:
